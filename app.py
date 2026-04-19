@@ -58,6 +58,14 @@ if df_raw is not None:
         st.stop()
     target_col = st.sidebar.selectbox("Target variable", numeric_cols)
 
+    missing_method = st.sidebar.selectbox(
+        "Missing value handling",
+        ["Interpolate (linear)", "Forward Fill", "Drop Rows"],
+    )
+    last_n = st.sidebar.number_input(
+        "Use last N periods (0 = all)", min_value=0, value=0, step=1,
+    )
+
     st.sidebar.header("Models")
     use_hw = st.sidebar.checkbox("Holt-Winters (Exponential Smoothing)", value=True)
     use_arima = st.sidebar.checkbox("ARIMA / SARIMA", value=True)
@@ -111,8 +119,15 @@ df = df.sort_values(date_col).set_index(date_col)
 
 series_full = df[target_col].copy()
 
-if series_full.isna().any():
-    series_full = series_full.interpolate(method="linear").ffill().bfill()
+n_missing = series_full.isna().sum()
+if n_missing > 0:
+    if missing_method == "Interpolate (linear)":
+        series_full = series_full.interpolate(method="linear").ffill().bfill()
+    elif missing_method == "Forward Fill":
+        series_full = series_full.ffill().bfill()
+    else:
+        series_full = series_full.dropna()
+    st.sidebar.caption(f"{n_missing} missing value(s) handled via {missing_method}.")
 
 inferred_freq = pd.infer_freq(series_full.index)
 if inferred_freq:
@@ -129,9 +144,17 @@ else:
         series_full = series_full.asfreq("QS")
     else:
         series_full = series_full.asfreq("YS")
-    series_full = series_full.interpolate(method="linear").ffill().bfill()
+    if missing_method == "Interpolate (linear)":
+        series_full = series_full.interpolate(method="linear").ffill().bfill()
+    elif missing_method == "Forward Fill":
+        series_full = series_full.ffill().bfill()
+    else:
+        series_full = series_full.dropna()
 
 freq = series_full.index.freq
+
+if last_n > 0:
+    series_full = series_full.iloc[-last_n:]
 
 if len(series_full) < 10:
     st.error("Not enough data points. Need at least 10 observations.")
@@ -569,7 +592,7 @@ each predicted change is fed back as input for the next step.
 
 ### Data Handling
 
-- **Missing values** are automatically handled via linear interpolation
+- **Missing values** are handled via user-selected method (interpolation, forward fill, or drop)
 - **Frequency** is automatically inferred from the date index
 - **Seasonal period** is inferred from frequency (e.g., 12 for monthly, 4 for quarterly)
 
