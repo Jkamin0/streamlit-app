@@ -5,6 +5,8 @@ Final project for Data 5360 -- Deep Forecasting (Utah State University, Spring 2
 A Streamlit web application for end-to-end time series forecasting with automatic
 model optimization.
 
+https://jsmith-data-5630.streamlit.app/
+
 ## Features
 
 - CSV file upload with user-selectable date and target columns
