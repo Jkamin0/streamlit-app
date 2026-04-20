@@ -10,7 +10,8 @@ https://jsmith-data-5630.streamlit.app/
 ## Features
 
 - CSV file upload with user-selectable date and target columns
-- Automatic missing value handling (linear interpolation)
+- Missing value handling (linear interpolation, forward fill, or drop)
+- Optional date range filtering (last N periods)
 - Automatic frequency and seasonal period detection
 - Four forecasting models with **auto-optimized parameters**:
   - **Holt-Winters**: tests all trend/seasonal/damping combinations, picks best AIC
@@ -54,7 +55,9 @@ sample_data/
 ### Data Handling
 
 - Dates are parsed automatically from the selected column
-- Missing values are filled via linear interpolation
+- Missing values are handled via user-selected strategy: linear interpolation,
+  forward fill, or dropping incomplete rows
+- Users can optionally filter to the last N periods of data
 - Data frequency and seasonal period are inferred from the date index
 
 ### Train / Test Split
@@ -91,6 +94,37 @@ using actual future values.
 | MAPE   | Mean Absolute Percentage Error -- scale-independent percentage metric  |
 
 Lower values indicate better model performance for all three metrics.
+
+## Design Decisions
+
+**Why first-differencing for ML models** -- Tree-based models (Random Forest, XGBoost)
+can only predict values within the range they've seen during training. A trending series
+will have future values above that range. Training on period-over-period changes instead
+of raw levels sidesteps this limitation, and cumulative summing reconstructs the forecast
+back to the original scale.
+
+**Why recursive forecasting instead of direct** -- A direct strategy would train a
+separate model for each step in the horizon (one model for t+1, another for t+2, etc.),
+which multiplies training time and can produce inconsistent step-to-step forecasts.
+Recursive forecasting uses a single model and feeds each prediction back as input for
+the next step, keeping the approach simple and coherent.
+
+**Why AIC for econometric model selection** -- AIC balances goodness-of-fit against model
+complexity (number of parameters). This avoids overfitting that would come from just
+picking the model with the lowest training error, without requiring a separate validation
+set that would further shrink an already small dataset.
+
+**Why TimeSeriesSplit for ML cross-validation** -- Standard k-fold CV shuffles data
+randomly, which would let the model train on future observations and test on past ones.
+TimeSeriesSplit preserves temporal order in every fold, giving a realistic estimate of
+how the model performs on unseen future data.
+
+## Sample Dataset
+
+The included `sample_data/airline_passengers.csv` contains the classic Box & Jenkins
+airline passenger dataset: 144 monthly observations from January 1949 to December 1960.
+The series exhibits a clear upward trend and strong yearly seasonality with summer peaks,
+making it a good benchmark for testing trend and seasonal forecasting models.
 
 ## Author
 
